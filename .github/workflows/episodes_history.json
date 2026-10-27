@@ -1,0 +1,17 @@
+{
+  "next_episode_number": 11,
+  "shipped_episodes": [
+    {
+      "ep": 9,
+      "slug": "million-vs-billion-seconds",
+      "title": "A million seconds is 11 days, a billion is 31 years",
+      "series": "Scale Check"
+    },
+    {
+      "ep": 10,
+      "slug": "bananas-are-radioactive",
+      "title": "Your banana is radioactive (0.1 microsieverts)",
+      "series": "Scale Check"
+    }
+  ]
+}
