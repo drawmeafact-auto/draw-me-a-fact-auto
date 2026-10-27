@@ -1,0 +1,117 @@
+name: Draw Me a Fact — Auto Studio
+
+on:
+  # Runs automatically at 12:45 UTC (6:15 PM IST) every day,
+  # scheduling your YouTube Short to go live at EXACTLY 7:00:00 PM IST!
+  # (Want 3x/week Tue-Thu-Sat instead of daily? Change "* * *" to "* * 2,4,6")
+  schedule:
+    - cron: "45 12 * * *"
+
+  # Also lets you run an episode anytime with 1 tap on your tablet!
+  workflow_dispatch:
+    inputs:
+      publish_mode:
+        description: "Publish mode"
+        required: true
+        default: "schedule_target"
+        type: choice
+        options:
+          - schedule_target
+          - public_now
+          - unlisted
+          - private
+          - dry_run
+      custom_topic:
+        description: "Optional topic (leave blank for automatic growing-number topic)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: drawmeafact-studio
+  cancel-in-progress: false
+
+jobs:
+  produce-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install FFmpeg & Python packages
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y ffmpeg
+          pip install --upgrade pip
+          pip install edge-tts numpy Pillow requests imageio-ffmpeg google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2
+
+      - name: Produce Episode, Run §9 QA Gate & Upload to YouTube Shorts
+        env:
+          TARGET_TIMEZONE: "Asia/Calcutta"
+          TARGET_PUBLISH_HOUR: "19"
+          TARGET_PUBLISH_MINUTE: "0"
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          MODE="${{ inputs.publish_mode || 'schedule_target' }}"
+          TOPIC="${{ inputs.custom_topic || '' }}"
+          if [ -n "$TOPIC" ]; then
+            python draw_me_a_fact.py --publish-mode "$MODE" --topic "$TOPIC"
+          else
+            python draw_me_a_fact.py --publish-mode "$MODE"
+          fi
+
+      - name: Auto-Publish to Instagram Reels (Runs automatically if IG secrets are added)
+        if: success() && (inputs.publish_mode != 'dry_run')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+        run: |
+          if [ -n "$IG_USER_ID" ] && [ -n "$IG_ACCESS_TOKEN" ]; then
+            gh release view reel-cdn >/dev/null 2>&1 || gh release create reel-cdn --title "Instagram Reel Feed" --notes "Temporary CDN asset for Meta Graph API"
+            gh release upload reel-cdn output/latest_episode.mp4 --clobber
+            export PUBLIC_VIDEO_URL="https://github.com/${{ github.repository }}/releases/download/reel-cdn/latest_episode.mp4"
+            python draw_me_a_fact.py --publish-ig-only
+          else
+            echo "Instagram secrets not set yet — skipping IG auto-post."
+          fi
+
+      - name: Save MP4, SRT, Upload Pack & QA Sheet to GitHub Artifacts (Downloadable on Tablet!)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drawmeafact-episode-${{ github.run_number }}
+          path: |
+            output/latest_episode.mp4
+            output/latest_episode.srt
+            output/youtube_pack.md
+            output/qa_sheet.png
+            output/ig_caption.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Commit Episode History & Fonts (Prevents Repeats + Keeps Schedule Alive Forever)
+        if: success() && (inputs.publish_mode != 'dry_run')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add episodes_history.json fonts/ brand/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: ship new @drawmeafact episode [skip ci]"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push
+          fi
+          
