@@ -96,10 +96,12 @@ def list_episodes(include_shipped: bool = True) -> dict[str, Any]:
             "slug": ep["slug"],
             "title": ep["title"],
             "series": ep["series"],
+            "sample": bool(ep.get("sample")),
             "sentences": len(ep.get("sentences", [])),
             "shipped": ep["slug"] in shipped,
         })
-    pending = next((r for r in rows if not r["shipped"]), None)
+    # samples are demonstrations, never the next thing the studio should produce
+    pending = next((r for r in rows if not r["shipped"] and not r["sample"]), None)
     return {
         "next_episode_number": hist.get("next_episode_number"),
         "next_in_queue": pending,

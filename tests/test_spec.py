@@ -65,6 +65,14 @@ def test_episode_zero_is_not_treated_as_missing():
     assert int(find_episode("0").get("ep")) == 0
 
 
+def test_connector_queue_skips_samples():
+    from connector import tools
+
+    pending = tools.list_episodes()["next_in_queue"]
+    assert pending["episode"] == 11, pending
+    assert pending["sample"] is False
+
+
 def test_sample_episodes_never_auto_queue():
     assert next_from_slate(set())["ep"] == 11
     for ep in VERIFIED_SLATE:
