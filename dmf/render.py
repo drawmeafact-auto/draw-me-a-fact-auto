@@ -43,6 +43,7 @@ def probe(path: Path) -> dict:
     import json
     import re
 
+    path = Path(path)
     try:
         out = subprocess.run(
             [ffprobe_exe(), "-v", "error", "-print_format", "json", "-show_format", "-show_streams", str(path)],
