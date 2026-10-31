@@ -1,0 +1,7 @@
+# Connector surface: MCP server + hosted façade
+-r requirements.txt
+
+mcp>=2.3
+uvicorn>=0.29
+starlette>=0.37
+httpx>=0.27

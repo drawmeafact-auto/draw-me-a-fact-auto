@@ -1,13 +1,12 @@
 name: Draw Me a Fact — Auto Studio
 
 on:
-  # Runs automatically at 12:45 UTC (6:15 PM IST) every day,
-  # scheduling your YouTube Short to go live at EXACTLY 7:00:00 PM IST!
-  # (Want 3x/week Tue-Thu-Sat instead of daily? Change "* * *" to "* * 2,4,6")
+  # Runs automatically at 12:45 UTC (6:15 PM IST) every day, so the Short goes
+  # live at exactly 7:00:00 PM IST. Want Tue-Thu-Sat instead? use "* * 2,4,6".
   schedule:
     - cron: "45 12 * * *"
 
-  # Also lets you run an episode anytime with 1 tap on your tablet!
+  # One-tap episode from a tablet, or a full CLI run from a laptop.
   workflow_dispatch:
     inputs:
       publish_mode:
@@ -22,7 +21,12 @@ on:
           - private
           - dry_run
       custom_topic:
-        description: "Optional topic (leave blank for automatic growing-number topic)"
+        description: "Optional topic (blank = next pre-verified episode)"
+        required: false
+        default: ""
+        type: string
+      episode:
+        description: "Optional episode number or slug from the slate (e.g. 11)"
         required: false
         default: ""
         type: string
@@ -37,7 +41,7 @@ concurrency:
 jobs:
   produce-and-publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -48,13 +52,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install FFmpeg & Python packages
+      - name: Install Python packages
         run: |
-          sudo apt-get update -y && sudo apt-get install -y ffmpeg
-          pip install --upgrade pip
-          pip install edge-tts numpy Pillow requests imageio-ffmpeg google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Produce Episode, Run §9 QA Gate & Upload to YouTube Shorts
+      - name: Spec tests (script, audio chain, drawing rules, connector)
+        run: python -m pytest -q
+
+      - name: Connector manifest smoke test
+        run: python -m connector.server --manifest > /dev/null
+
+      - name: Produce episode, run the §9 QA gate, upload to YouTube Shorts
         env:
           TARGET_TIMEZONE: "Asia/Calcutta"
           TARGET_PUBLISH_HOUR: "19"
@@ -67,21 +76,22 @@ jobs:
         run: |
           MODE="${{ inputs.publish_mode || 'schedule_target' }}"
           TOPIC="${{ inputs.custom_topic || '' }}"
-          if [ -n "$TOPIC" ]; then
-            python draw_me_a_fact.py --publish-mode "$MODE" --topic "$TOPIC"
-          else
-            python draw_me_a_fact.py --publish-mode "$MODE"
-          fi
+          EPISODE="${{ inputs.episode || '' }}"
+          ARGS=(--publish-mode "$MODE")
+          [ -n "$TOPIC" ] && ARGS+=(--topic "$TOPIC")
+          [ -n "$EPISODE" ] && ARGS+=(--episode "$EPISODE")
+          python draw_me_a_fact.py "${ARGS[@]}"
 
-      - name: Auto-Publish to Instagram Reels (Runs automatically if IG secrets are added)
-        if: success() && (inputs.publish_mode != 'dry_run')
+      - name: Auto-publish to Instagram Reels (runs automatically if IG secrets exist)
+        if: success() && inputs.publish_mode != 'dry_run'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
         run: |
           if [ -n "$IG_USER_ID" ] && [ -n "$IG_ACCESS_TOKEN" ]; then
-            gh release view reel-cdn >/dev/null 2>&1 || gh release create reel-cdn --title "Instagram Reel Feed" --notes "Temporary CDN asset for Meta Graph API"
+            gh release view reel-cdn >/dev/null 2>&1 || \
+              gh release create reel-cdn --title "Instagram Reel Feed" --notes "Temporary CDN asset for Meta Graph API"
             gh release upload reel-cdn output/latest_episode.mp4 --clobber
             export PUBLIC_VIDEO_URL="https://github.com/${{ github.repository }}/releases/download/reel-cdn/latest_episode.mp4"
             python draw_me_a_fact.py --publish-ig-only
@@ -89,7 +99,7 @@ jobs:
             echo "Instagram secrets not set yet — skipping IG auto-post."
           fi
 
-      - name: Save MP4, SRT, Upload Pack & QA Sheet to GitHub Artifacts (Downloadable on Tablet!)
+      - name: Upload MP4, SRT, upload pack & QA sheet as artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -103,8 +113,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Commit Episode History & Fonts (Prevents Repeats + Keeps Schedule Alive Forever)
-        if: success() && (inputs.publish_mode != 'dry_run')
+      - name: Commit episode history, fonts & brand deliverables
+        if: success() && inputs.publish_mode != 'dry_run'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -114,4 +124,3 @@ jobs:
             git pull --rebase origin "${GITHUB_REF_NAME}"
             git push
           fi
-          

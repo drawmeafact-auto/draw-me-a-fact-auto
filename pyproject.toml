@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "draw-me-a-fact"
+version = "1.1.0"
+description = "Autonomous production studio for the @drawmeafact YouTube Shorts channel, exposed as an MCP connector."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26",
+    "Pillow>=10.2",
+    "edge-tts>=6.1.9",
+    "requests>=2.31",
+    "imageio-ffmpeg>=0.4.9",
+]
+
+[project.optional-dependencies]
+connector = ["mcp>=2.3", "uvicorn>=0.29", "starlette>=0.37"]
+publish = ["google-api-python-client>=2.100", "google-auth>=2.23", "google-auth-oauthlib>=1.1"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+draw-me-a-fact = "draw_me_a_fact:main"
+
+[tool.setuptools]
+packages = ["dmf", "connector"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
