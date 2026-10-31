@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0",
+  "id": "draw-me-a-fact-studio",
+  "name": "Draw Me a Fact",
+  "title": "Draw Me a Fact Studio",
+  "version": "1.1.0",
+  "description": "Autonomous production studio for the @drawmeafact YouTube Shorts channel: writes the five-sentence script, generates the voiceover, animates the film frame by frame, muxes the audio, runs the QA gate, and prepares the upload package.",
+  "publisher": {
+    "name": "drawmeafact-auto",
+    "url": "https://github.com/drawmeafact-auto/draw-me-a-fact-auto"
+  },
+  "homepage": "https://github.com/drawmeafact-auto/draw-me-a-fact-auto",
+  "repository": "https://github.com/drawmeafact-auto/draw-me-a-fact-auto",
+  "license": "MIT",
+  "icon": "https://raw.githubusercontent.com/drawmeafact-auto/draw-me-a-fact-auto/main/brand/icon.png",
+  "categories": ["media", "video", "content-automation", "creative"],
+  "tags": ["youtube-shorts", "video-generation", "text-to-speech", "hand-drawn", "science"],
+  "transport": {
+    "primary": "streamable-http",
+    "endpoint": "/mcp",
+    "alternatives": ["sse", "stdio"],
+    "stdio_command": "python -m connector.server",
+    "http_command": "python -m connector.server --http --port 8765"
+  },
+  "auth": {
+    "type": "none",
+    "notes": "No credentials are required for read-only tools and dry runs. Publishing uses server-side secrets (YOUTUBE_*, IG_*) that are never exposed to the client."
+  },
+  "capabilities": {
+    "tools": true,
+    "resources": false,
+    "prompts": false
+  },
+  "tools": [
+    {
+      "name": "describe_studio",
+      "description": "What this connector is, and which integrations are configured right now.",
+      "read_only": true
+    },
+    {
+      "name": "list_episodes",
+      "description": "List the pre-verified episode slate, flagged with what has already shipped.",
+      "read_only": true
+    },
+    {
+      "name": "get_episode",
+      "description": "Full package for one slate episode (number or slug): script, scenes, sources, word count.",
+      "read_only": true,
+      "parameters": {
+        "identifier": {"type": "string", "required": true, "description": "Episode number or slug, e.g. 11 or mountains-10km-limit"}
+      }
+    },
+    {
+      "name": "plan_script",
+      "description": "Draft a five-sentence script for a topic and check it against the script contract. No render.",
+      "read_only": true,
+      "parameters": {
+        "topic": {"type": "string", "required": true},
+        "series": {"type": "string", "required": false}
+      }
+    },
+    {
+      "name": "produce_episode",
+      "description": "Produce one episode end to end: voice, score, frames, mux, SRT, upload pack, QA gate. Never uploads unless publish_mode asks for it.",
+      "read_only": false,
+      "parameters": {
+        "episode": {"type": "string", "required": false},
+        "topic": {"type": "string", "required": false},
+        "publish_mode": {
+          "type": "string",
+          "required": false,
+          "default": "dry_run",
+          "enum": ["dry_run", "private", "unlisted", "public_now", "schedule_target"]
+        },
+        "render": {"type": "boolean", "required": false, "default": true}
+      }
+    },
+    {
+      "name": "run_qa",
+      "description": "Re-run the QA gate on the latest film (or a path you pass).",
+      "read_only": true,
+      "parameters": {
+        "video_path": {"type": "string", "required": false}
+      }
+    },
+    {
+      "name": "list_assets",
+      "description": "Everything on disk: MP4, SRT, youtube_pack.md, contact sheet, voice WAVs, timing JSON.",
+      "read_only": true
+    },
+    {
+      "name": "score_info",
+      "description": "The locked audio chain, sample rate and timing constants.",
+      "read_only": true
+    }
+  ],
+  "rate_limits": {
+    "produce_episode": "1 concurrent render; roughly 1-2 minutes of CPU per film",
+    "default": "unlimited, read-only tools are cheap"
+  }
+}

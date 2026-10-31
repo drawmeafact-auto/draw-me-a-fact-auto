@@ -1,0 +1,17 @@
+# Draw Me a Fact — production studio
+# The connector extras are in requirements-connector.txt
+
+numpy>=1.26
+Pillow>=10.2
+edge-tts>=6.1.9        # locked narrator: en-GB-RyanNeural
+requests>=2.31
+imageio-ffmpeg>=0.4.9  # no system ffmpeg is assumed
+
+# Publishing (optional at runtime; imported lazily)
+google-api-python-client>=2.100
+google-auth>=2.23
+google-auth-oauthlib>=1.1
+google-auth-httplib2>=0.1.1
+
+# Development
+pytest>=8.0

@@ -1,0 +1,73 @@
+name: Connector CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  spec-and-connector:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-connector.txt
+
+      - name: Spec tests
+        run: python -m pytest -q
+
+      - name: Validate the registration manifest
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+          manifest = json.loads(pathlib.Path("connector/manifest.json").read_text())
+          required = ["schema_version", "id", "name", "version", "description",
+                      "transport", "auth", "tools"]
+          missing = [k for k in required if k not in manifest]
+          if missing:
+              sys.exit(f"manifest missing keys: {missing}")
+          from connector import tools
+          unknown = {t["name"] for t in manifest["tools"]} - set(tools.TOOLS)
+          if unknown:
+              sys.exit(f"manifest advertises unknown tools: {unknown}")
+          print(f"manifest ok · {len(manifest['tools'])} tools · transport {manifest['transport']['primary']}")
+          PY
+
+      - name: Boot the connector and call a tool over MCP
+        run: |
+          python -m connector.http_server --host 127.0.0.1 --port 8765 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8765/healthz >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8765/.well-known/ai-connector.json > /dev/null
+          curl -sf -X POST http://127.0.0.1:8765/tools/list_episodes \
+            -H 'content-type: application/json' -d '{}' | head -c 200
+          echo
+          python - <<'PY'
+          import asyncio, json
+          from mcp import ClientSession
+          from mcp.client.streamable_http import streamable_http_client
+
+          async def main():
+              async with streamable_http_client("http://127.0.0.1:8765/mcp") as streams:
+                  async with ClientSession(streams[0], streams[1]) as s:
+                      await s.initialize()
+                      tools = [t.name for t in (await s.list_tools()).tools]
+                      assert "produce_episode" in tools, tools
+                      res = await s.call_tool("describe_studio", {})
+                      info = json.loads(res.content[0].text)
+                      print("mcp ok ·", info["name"], info["version"], "·", len(tools), "tools")
+
+          asyncio.run(main())
+          PY

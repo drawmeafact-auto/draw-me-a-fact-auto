@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Production artefacts — rebuild with `python draw_me_a_fact.py`
+build/
+output/
+*.mp4
+*.wav
+
+# Keep the brand deliverables and the shipped history in version control
+!brand/**
+!episodes_history.json
