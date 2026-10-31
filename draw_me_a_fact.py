@@ -42,6 +42,7 @@ def cmd_produce(args: argparse.Namespace) -> int:
         publish_mode=args.publish_mode,
         render=not args.no_render,
         progress=progress,
+        voice_dir=args.voice_dir,
     )
     ep = find_episode(args.episode) if args.episode else None
     if ep is None:
@@ -114,6 +115,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--topic", default="", help="optional topic; needs GEMINI_API_KEY or GROQ_API_KEY")
     p.add_argument("--episode", default=None, help="episode number or slug from the pre-verified slate")
     p.add_argument("--no-render", action="store_true", help="plan script + voice + timing only")
+    p.add_argument("--voice-dir", default=None, metavar="DIR",
+                   help="use pre-recorded narration: one audio file per sentence, in order")
     p.add_argument("--list-slate", action="store_true", help="show the slate and what has shipped")
     p.add_argument("--qa", default=None, metavar="MP4", help="re-run the §9 QA gate on an existing film")
     p.add_argument("--publish-ig-only", action="store_true", help="post the last render to Instagram Reels")

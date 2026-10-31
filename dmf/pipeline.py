@@ -17,7 +17,7 @@ from .config import (
     ensure_dirs,
 )
 from .qa_gate import as_table, run_checks
-from .render import build_dir, extract_frame, mux, render_frames
+from .render import build_dir, extract_frame, loudnorm_two_pass, mux, render_frames
 from .scenes import paint, scene_kind
 from .slate import VERIFIED_SLATE, find_episode, next_from_slate
 
@@ -51,6 +51,7 @@ def run_episode(
     voice_source: str = "auto",
     render: bool = True,
     progress: Progress | None = None,
+    voice_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Produce one episode end to end. Returns a JSON-serialisable report."""
     report_progress = progress or _noop
@@ -75,7 +76,10 @@ def run_episode(
     if problems:
         raise RuntimeError("script does not meet §3: " + "; ".join(problems))
 
-    ep_number = int(ep.get("ep") or _history().get("next_episode_number", 99))
+    # `or` would turn episode 0 into "next in history" — episode numbers are
+    # explicit, so test for None instead of falsiness.
+    raw_number = ep.get("ep")
+    ep_number = int(raw_number if raw_number is not None else _history().get("next_episode_number", 99))
     slug = str(ep.get("slug") or "episode")
     tag = f"ep{ep_number:02d}_{slug}"
     sentences = ep["sentences"]
@@ -84,7 +88,19 @@ def run_episode(
     # ---------------------------------------------------------------- voice
     report_progress("voice", 0.08)
     vdir = BUILD_DIR / tag / "voice"
-    lines = voice.synth_lines(sentences, vdir)
+    if voice_dir:
+        provided = sorted(
+            [f for f in Path(voice_dir).iterdir() if f.suffix.lower() in voice.AUDIO_SUFFIXES],
+            key=lambda f: f.name,
+        )
+        if len(provided) != len(sentences):
+            raise ValueError(
+                f"voice_dir needs exactly one audio file per sentence "
+                f"({len(sentences)}); found {len(provided)} in {voice_dir}"
+            )
+        lines = voice.lines_from_files(provided, vdir)
+    else:
+        lines = voice.synth_lines(sentences, vdir)
     speed = voice.enforce_runtime(lines, vdir)
     clips = [audio.load_audio(l.path) for l in lines]
     durations = [c.size / audio.SR for c in clips]
@@ -154,6 +170,13 @@ def run_episode(
     report_progress("mux", 0.92)
     final = OUTPUT_DIR / "latest_episode.mp4"
     mux(raw, score_wav, final)
+    report_progress("loudness", 0.94)
+    loud = loudnorm_two_pass(final, final.with_suffix(".normalised.mp4"))
+    if loud.get("normalised"):
+        loud_measured = loud
+        final.with_suffix(".normalised.mp4").replace(final)
+    else:
+        loud_measured = {"normalised": False, "reason": loud.get("reason", "")}
 
     # ---------------------------------------------------------------- deliverables
     report_progress("deliver", 0.95)
@@ -193,6 +216,7 @@ def run_episode(
     # ---------------------------------------------------------------- QA gate
     report_progress("qa", 0.98)
     qa = run_checks(final, onsets, measured, sentences, frames=frames)
+    report["loudness"] = loud_measured
     report["qa"] = qa
     report["qa_table"] = as_table(qa)
     (BRAND_DIR / f"ep{ep_number:02d}" / "qa_report.md").write_text(

@@ -43,6 +43,7 @@ class VoiceLine:
     path: Path
     duration: float
     source: str
+    origin: Path | None = None   # file to re-decode from when time-stretching
 
 
 def _ffmpeg() -> str:
@@ -152,8 +153,35 @@ def synth_lines(sentences: list[str], workdir: Path, voice: str = PRIMARY_VOICE)
             source = "placeholder"
 
         data = audio.load_audio(wav)
-        lines.append(VoiceLine(i, text, wav, data.size / SR, source))
+        lines.append(VoiceLine(i, text, wav, data.size / SR, source,
+                               origin=mp3 if source.startswith(("edge-tts", "gtts")) else None))
 
+    return lines
+
+
+AUDIO_SUFFIXES = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac", ".opus"}
+
+
+def lines_from_files(paths: list[Path], workdir: Path) -> list[VoiceLine]:
+    """Wrap already-generated narration: one audio file per sentence, in order.
+
+    Used when the operator (or another tool) supplies the voiceover. Every file
+    is normalised to 44.1 kHz mono WAV and *measured*, so scene timing still
+    comes from real audio and §4's "derive timing, never guess" holds.
+    """
+    workdir.mkdir(parents=True, exist_ok=True)
+    lines: list[VoiceLine] = []
+    for i, src in enumerate(paths, start=1):
+        src = Path(src)
+        if src.suffix.lower() not in AUDIO_SUFFIXES:
+            raise ValueError(f"unsupported audio file: {src.name}")
+        wav = workdir / f"line{i:02d}.wav"
+        try:
+            _decode(src, wav)          # ffmpeg reads wav, mp3, m4a and everything else
+        except Exception:
+            wav = src                  # already a clean PCM wav
+        data = audio.load_audio(wav)
+        lines.append(VoiceLine(i, "", wav, data.size / SR, "provided", origin=src))
     return lines
 
 
@@ -170,12 +198,12 @@ def enforce_runtime(lines: list[VoiceLine], workdir: Path, max_runtime: float = 
     if speed <= 1.001:
         return 1.0
     for line in lines:
-        if line.source.startswith(("edge-tts", "gtts")):
-            mp3 = line.path.with_suffix(".mp3")
-            if not mp3.exists() or mp3.stat().st_size < 2048:
+        if line.source != "placeholder":
+            src = line.origin or line.path
+            if not Path(src).exists():
                 continue
             try:
-                _decode(mp3, line.path, speed)
+                _decode(Path(src), line.path, speed)
                 line.duration = audio.load_audio(line.path).size / SR
             except Exception:
                 continue

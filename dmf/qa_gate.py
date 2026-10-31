@@ -46,9 +46,10 @@ def run_checks(
         except Exception:
             fps = 0.0
         rows.append(_row("2b. 30 fps", PASS if abs(fps - 30) < 0.05 else FAIL, f"{fps:.3f} fps"))
+        sr_ok = int(a.get("sample_rate") or 0) == 44100
         rows.append(_row(
             "2c. Audio aac mono 44.1 kHz",
-            PASS if a.get("codec_name") == "aac" and a.get("channels") == 1 else FAIL,
+            PASS if a.get("codec_name") == "aac" and a.get("channels") == 1 and sr_ok else FAIL,
             f"{a.get('codec_name')} {a.get('sample_rate')} Hz ch={a.get('channels')}",
         ))
     except Exception as exc:  # pragma: no cover
@@ -77,6 +78,18 @@ def run_checks(
                          f"min RMS {worst:.3f} > {cue_floor} · cues {rms_per_cue}"))
     except Exception as exc:
         rows.append(_row("4. Voice at every cue", FAIL, f"decode error: {exc}"))
+
+    # 4b · broadcast loudness: YouTube normalises to -14 LUFS
+    try:
+        from .render import measure_loudness
+
+        loud = measure_loudness(video)
+        i = loud.get("i")
+        ok = i is not None and -17.0 <= i <= -11.0
+        rows.append(_row("4b. Loudness ≈ -14 LUFS", PASS if ok else WARN,
+                         f"I {i} LUFS · LRA {loud.get('lra')} LU · true peak {loud.get('true_peak')} dBTP"))
+    except Exception as exc:
+        rows.append(_row("4b. Loudness ≈ -14 LUFS", WARN, f"could not measure: {exc}"))
 
     # 5 · numbers on screen == numbers in the script == numbers in the SRT
     digits = [s for s in sentences if any(ch.isdigit() for ch in s)]

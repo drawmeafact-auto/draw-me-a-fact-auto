@@ -11,7 +11,9 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from .config import AUDIO_BITRATE, BUILD_DIR, FPS, H, MAX_FRAMES, VIDEO_CRF, VIDEO_PRESET, W
+import json
+
+from .config import AUDIO_BITRATE, BUILD_DIR, FPS, H, MAX_FRAMES, SR, VIDEO_CRF, VIDEO_PRESET, W
 
 
 def ffmpeg_exe() -> str:
@@ -125,6 +127,61 @@ def render_frames(
         "seconds": round(time.time() - t0, 2),
         "fps": fps,
     }
+
+
+def measure_loudness(path: Path) -> dict:
+    """Integrated loudness, loudness range and true peak (EBU R128)."""
+    import re
+
+    ff = ffmpeg_exe()
+    out = subprocess.run(
+        [ff, "-hide_banner", "-nostats", "-i", str(path), "-af", "ebur128=peak=true", "-f", "null", "-"],
+        capture_output=True, text=True,
+    ).stderr
+    summary = out.rsplit("Summary:", 1)[-1] if "Summary:" in out else out
+
+    def grab(label: str) -> float | None:
+        m = re.search(rf"{label}:\s*(-?\d+(?:\.\d+)?)", summary)
+        return float(m.group(1)) if m else None
+
+    return {"i": grab("I"), "lra": grab("LRA"), "true_peak": grab("Peak")}
+
+
+def loudnorm_two_pass(src: Path, dst: Path, target_i: float = -14.0,
+                      target_tp: float = -1.5, target_lra: float = 11.0) -> dict:
+    """Broadcast-normalise to Target LUFS. YouTube normalises to -14, so we sit there."""
+    import re
+
+    ff = ffmpeg_exe()
+    probe_run = subprocess.run(
+        [ff, "-hide_banner", "-nostats", "-i", str(src), "-af",
+         f"loudnorm=I={target_i}:TP={target_tp}:LRA={target_lra}:print_format=json",
+         "-f", "null", "-"],
+        capture_output=True, text=True,
+    )
+    blob = re.findall(r'\{[^{}]*"input_i"[^{}]*\}', probe_run.stderr, re.S)
+    if not blob:
+        subprocess.run([ff, "-y", "-loglevel", "error", "-i", str(src), "-c", "copy", str(dst)], check=True)
+        return {"normalised": False, "reason": "loudnorm probe failed"}
+
+    m = json.loads(blob[-1])
+    af = (
+        f"loudnorm=I={target_i}:TP={target_tp}:LRA={target_lra}"
+        f":measured_I={m['input_i']}:measured_TP={m['input_tp']}"
+        f":measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}"
+        f":offset={m.get('target_offset', 0)}:linear=true:print_format=summary"
+    )
+    res = subprocess.run(
+        [ff, "-y", "-loglevel", "error", "-i", str(src), "-af", af,
+         "-c:v", "copy", "-c:a", "aac", "-b:a", AUDIO_BITRATE,
+         "-ar", str(SR), "-ac", "1", "-movflags", "+faststart", str(dst)],
+        capture_output=True, text=True,
+    )
+    if res.returncode != 0:
+        subprocess.run([ff, "-y", "-loglevel", "error", "-i", str(src), "-c", "copy", str(dst)], check=True)
+        return {"normalised": False, "reason": res.stderr.strip()[:200]}
+    return {"normalised": True, "target_lufs": target_i, "measured_before": float(m["input_i"]),
+            "gain_db": round(target_i - float(m["input_i"]), 2)}
 
 
 def mux(video: Path, score_wav: Path, out_path: Path) -> Path:

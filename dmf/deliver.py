@@ -90,7 +90,7 @@ Full numbers ladder: {ep.get('numbers_summary','')}
 Series: {ep.get('series','')} — one fact, one sheet, one minute.
 
 **Sources**
-{chr(10).join('- ' + str(r.get('source','')) for r in acc) or '- see accuracy table'}
+{chr(10).join('- ' + str(r.get('claim','')) + ': ' + str(r.get('source','')) for r in acc) or '- see accuracy table'}
 
 Drawn by hand on paper. New fact every week.
 ▶ Subscribe: `<YOUR_SUBSCRIBE_LINK>`

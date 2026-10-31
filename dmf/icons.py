@@ -162,6 +162,27 @@ def atom(c: Canvas, cx: float, cy: float, hw: float, hh: float, p: float = 1.0) 
     draw_heart(c, cx, cy, hh * 0.55, ACC)
 
 
+def strands(c: Canvas, cx: float, cy: float, hw: float, hh: float, p: float = 1.0) -> None:
+    """A head's crown with hairs growing out of it — states the subject, no decoration."""
+    base = cy + hh * 0.55
+    # scalp line: a shallow dome, never a perfect arc
+    dome = [(cx - hw, base)] + [
+        (cx - hw + 2 * hw * u, base - hh * 0.34 * math.sin(math.pi * u))
+        for u in np.linspace(0.05, 0.95, 18)
+    ] + [(cx + hw, base)]
+    c.draw.line([(x * c.S, y * c.S) for x, y in dome], fill=INK, width=int(13 * c.S / 2), joint="curve")
+    hairs = [(-0.78, 0.62), (-0.42, 0.94), (0.02, 1.0), (0.44, 0.9), (0.79, 0.58)]
+    for i, (ux, tall) in enumerate(hairs):
+        if p < (i + 1) / (len(hairs) + 2):
+            continue
+        x0 = cx + ux * hw
+        y0 = base - hh * 0.34 * math.sin(math.pi * (ux + 1) / 2)
+        length = hh * 1.5 * tall
+        pts = [(x0 + math.sin(u * 3.1 + i) * hw * 0.10 * u, y0 - length * u) for u in np.linspace(0, 1, 14)]
+        c.draw.line([(x * c.S, y * c.S) for x, y in pts], fill=INK, width=int(7 * c.S / 2), joint="curve")
+    c.wobble_line((cx - hw * 1.1, base + hh * 0.16), (cx + hw * 1.1, base + hh * 0.16), w=9, amp=1.2)
+
+
 def ruler(c: Canvas, cx: float, cy: float, hw: float, hh: float, p: float = 1.0) -> None:
     w = hw * 0.98
     c.draw.rounded_rectangle([(cx - w) * c.S, (cy - hh * 0.34) * c.S, (cx + w) * c.S, (cy + hh * 0.34) * c.S],
@@ -175,6 +196,7 @@ def ruler(c: Canvas, cx: float, cy: float, hw: float, hh: float, p: float = 1.0)
 
 
 ICONS = {
+    "strands": strands,
     "mountain": mountain,
     "weight_crush": weight_crush,
     "cloud": cloud,

@@ -11,6 +11,66 @@ from typing import Any
 
 VERIFIED_SLATE: list[dict[str, Any]] = [
     {
+        "ep": 0,
+        "slug": "sample-your-hair-grows-seven-hundred-kilometres",
+        "series": "Cost Of One",
+        "title": "Your hair grows seven hundred kilometres in a lifetime",
+        "alt_titles": [
+            "Nine kilometres of hair a year, from one hundred thousand follicles",
+            "One strand of hair covers nine metres before you are done",   # ~9 m = 1 cm x 12 months x 75 years x 80% growth phase
+            "Your scalp grows the distance from Delhi to Jaipur almost three times over",
+        ],
+        "hook_130": "A single follicle adds a centimetre a month, and a hundred thousand of them push out nine kilometres of hair every year.",
+        "numbers_summary": "0.3 mm (per day, one follicle) -> 1 cm (per month) -> 3.5 m / 9 m / 9.3 km (ladder) -> 700 km (one lifetime)",
+        "pinned_comment": "Run your hand through your hair right now. Everything you just touched is the newest centimetre of a seven hundred kilometre race.",
+        "tags": "draw me a fact,cost of one,hair growth,human body facts,biology facts,scale check,science shorts,hand drawn facts,shorts",
+        "sample": True,
+        "sentences": [
+            "The average scalp carries about a hundred thousand follicles, each one pushing out roughly zero point three millimetres of hair every single day.",
+            "That works out to about a centimetre each month, which sounds tiny until you remember it never stops until it does.",
+            "A fingernail manages three and a half metres in a lifetime, one strand reaches nine, and every follicle on one head adds up to nine kilometres a year.",
+            "Over seventy five years that same scalp grows seven hundred kilometres of hair, two and a half times the drive from Delhi to Jaipur.",
+            "So your body measures time in millimetres, so subscribe, and tap like.",
+        ],
+        "scenes": [
+            {"icon": "strands", "headline": "A HUNDRED THOUSAND FOLLICLES", "display_number": "0.3 mm", "target_num": 0.3, "unit": "mm/day", "caption": "average growth per follicle, per day"},
+            {"icon": "ruler", "headline": "ONE MONTH OF GROWTH", "display_number": "1 cm", "target_num": 1.0, "unit": "cm/month", "caption": "monthly growth, per single strand"},
+            {
+                "icon": "ladder",
+                "headline": "MEASURED IN METRES, THEN KILOMETRES",
+                "display_number": "9.3 km",
+                "target_num": 9.3,
+                "unit": "km",
+                "caption": "one scalp, one year of growth",
+                "ladder": [
+                    {"label": "Fingernail, lifetime", "val": 3.5, "text": "3.5 m"},
+                    {"label": "One strand, lifetime", "val": 9.0, "text": "9 m"},
+                    {"label": "One scalp, one year", "val": 93.0, "text": "9.3 km"},
+                ],
+            },
+            {
+                "icon": "compare",
+                "headline": "SEVENTY FIVE YEARS OF HAIR",
+                "display_number": "700 km",
+                "target_num": 700.0,
+                "unit": "km",
+                "caption": "every follicle, averaged over a lifetime",
+                "compare": {"left_name": "Delhi to Jaipur", "left_val": 281.0, "left_txt": "281 km", "right_name": "75 Years of Hair", "right_val": 700.0, "right_txt": "700 km"},
+            },
+            {"icon": "strands", "reframe": "YOU MEASURE TIME IN MILLIMETRES", "emphasis_word": "700 KM", "ruler_label": "3.5 m      9.3 km      700 km"},
+        ],
+        "accuracy_table": [
+            {"claim": "Scalp follicle count", "value": "~100,000 (range 90,000-150,000)", "source": "Robbins (2012), Chemical and Physical Behavior of Human Hair"},
+            {"claim": "Scalp hair growth rate", "value": "~0.34 mm/day (~1 cm/month)", "source": "American Academy of Dermatology; Robbins 2012"},
+            {"claim": "Share of follicles in the growth phase", "value": "~80% (anagen)", "source": "Robbins 2012 hair growth cycle data"},
+            {"claim": "Fingernail growth over a lifetime", "value": "~3.5 mm/month, ~3.5 m in 75 years", "source": "American Academy of Dermatology nail growth data"},
+            {"claim": "One strand over 75 years", "value": "~9 m (1 cm x 12 x 75 x 0.8)", "source": "Calculated from the AAD growth rate and 80% anagen fraction"},
+            {"claim": "Whole scalp, one year", "value": "~9.3 km (100,000 follicles x 0.032 cm/day x 365 x 0.8)", "source": "Calculated from the figures above"},
+            {"claim": "Whole scalp over 75 years", "value": "~700 km", "source": "Calculated from the figures above"},
+            {"claim": "Delhi to Jaipur road distance", "value": "~281 km", "source": "National Highways Authority of India route data"},
+        ],
+    },
+    {
         "ep": 11,
         "slug": "mountains-10km-limit",
         "series": "Scale Check",
@@ -278,7 +338,10 @@ def find_episode(slug_or_number: str | int) -> dict[str, Any] | None:
 
 
 def next_from_slate(shipped_slugs: set[str]) -> dict[str, Any] | None:
+    """Next real episode to produce. Sample episodes are never auto-selected."""
     for ep in VERIFIED_SLATE:
+        if ep.get("sample"):
+            continue
         if ep["slug"] not in shipped_slugs:
             return ep
     return None

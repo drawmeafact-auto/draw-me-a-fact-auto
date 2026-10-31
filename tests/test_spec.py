@@ -59,6 +59,19 @@ def test_digits_to_words_does_not_leave_digits():
     assert not any(ch.isdigit() for ch in script.digits_to_words("20 km and 1,200 tonnes"))
 
 
+def test_episode_zero_is_not_treated_as_missing():
+    """Regression: episode 0 exists (the sample) and must not fall back to 'next'."""
+    assert find_episode("0")["ep"] == 0
+    assert int(find_episode("0").get("ep")) == 0
+
+
+def test_sample_episodes_never_auto_queue():
+    assert next_from_slate(set())["ep"] == 11
+    for ep in VERIFIED_SLATE:
+        if ep["ep"] == 0:
+            assert ep.get("sample") is True
+
+
 def test_slate_lookup_and_queue():
     assert find_episode("11")["slug"] == "mountains-10km-limit"
     assert find_episode("fold-paper-42-times-moon")["ep"] == 12
